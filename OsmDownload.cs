@@ -29,9 +29,9 @@ namespace OsmTools
     {
         //Properties
         public override Guid ComponentGuid { get { return new Guid ("a8d43ae11c974d6fb3789feb6955ebba"); } }
-        protected override Bitmap Icon { get { return Properties.Resources.DownloadIcon; } }
+        protected override Bitmap Icon { get { return Properties.Resources.map; } }
         //Constructor
-        public OsmDownload() : base("Download OSM File", "DWD OSM", "Download the map contained in the input boundary", "OSM Data", "Get Osm") { }
+        public OsmDownload() : base("Download OSM File", "Download", "Download the map contained in the input boundary", "OSM Data", "Get Osm") { }
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
@@ -64,30 +64,42 @@ namespace OsmTools
             DA.GetData(4, ref run_);
             if (run_)
             {
-                fp = DownloadFile(west, south, east, north);
+                try
+                {
+                    fp = DownloadFile(west, south, east, north);
+                }
+                catch
+                {
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error,"Save your Rhino File.");
+                }
             }
 
             //Output
             DA.SetData(0, fp);
-            Coordinate corner = new Coordinate(west, south);
-            var cornerEasting = double.Parse(corner.UTM.Easting.ToString());
-            var cornerNorthing = double.Parse(corner.UTM.Northing.ToString());
-            Point2d mapCorner = new Point2d(cornerEasting, cornerNorthing);
-            DA.SetData(1, mapCorner);
+
+            Coordinate corner = new Coordinate(south, west);
+            Coordinate topCorner = new Coordinate(north, east);
+
+            var cornerEasting = corner.UTM.Easting;
+            var cornerNorthing = corner.UTM.Northing;
+            var topCornerEasting = topCorner.UTM.Easting;
+            var topCornerNorthing = topCorner.UTM.Northing;
+
+            Point3d bottom = new Point3d(cornerEasting, cornerNorthing, 0);
+            Point3d top = new Point3d(topCornerEasting, topCornerNorthing, 0);
+
+
+            var moveVector = new Point3d(0, 0, 0)- bottom;
+
+            DA.SetData(1, moveVector);
         }
         public string DownloadFile(double w,double s,double e,double n)
         {
-            string BaseUrl = "https://overpass-api.de/api/interpreter";
-            string payload = @"(
-                                node({0}, {1}, {2}, {3});
-                                <;
-                             );
-                             out meta;";
+            string BaseUrl = "http://www.overpass-api.de/api/xapi?map?bbox={0},{1},{2},{3}";
 
-            payload = String.Format(payload, w, s, e, n);
+            BaseUrl= String.Format(BaseUrl, w, s, e, n);
 
             WebClient client = new WebClient();
-            client.QueryString.Add("data", payload);
 
             Stream data = client.OpenRead(BaseUrl);
             StreamReader reader = new StreamReader(data);
